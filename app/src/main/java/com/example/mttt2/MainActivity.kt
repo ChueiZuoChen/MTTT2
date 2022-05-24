@@ -19,6 +19,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.mttt2.databinding.ActivityMainBinding
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.PoseDetection
+import com.google.mlkit.vision.pose.accurate.AccuratePoseDetectorOptions
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 
 class MainActivity : AppCompatActivity() {
@@ -112,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         }
         // PoseDetectorOptions: 4 mode ->  STREAM_MODE, SINGLE_IMAGE_MODE, CPU_GPU, CPU.
         val options = PoseDetectorOptions.Builder()
-            .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
+            .setDetectorMode(AccuratePoseDetectorOptions.STREAM_MODE)
             .build()
         // Step 3-> init poseDetector.
         val poseDetector = PoseDetection.getClient(options)
