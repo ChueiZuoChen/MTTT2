@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.util.Log
 import com.google.common.primitives.Ints
 import com.google.mlkit.vision.pose.Pose
 import com.google.mlkit.vision.pose.PoseLandmark
@@ -12,15 +11,15 @@ import java.lang.Math.max
 import java.lang.Math.min
 
 /** Draw the detected pose in preview.  */
-class PoseGraphic internal constructor(
+internal class PoseGraphic internal constructor(
     overlay: GraphicOverlay,
     private val pose: Pose,
-    private val showInFrameLikelihood: Boolean,
     private val visualizeZ: Boolean,
     private val rescaleZForVisualization: Boolean,
     private val w: Int,
     private val h: Int,
-    private val context: Context
+    private val context: Context,
+    private val isInsideGreenZoneCallBack: isInsideGreenZoneCallBack
 ) : GraphicOverlay.Graphic(overlay) {
     private var zMin = java.lang.Float.MAX_VALUE
     private var zMax = java.lang.Float.MIN_VALUE
@@ -30,17 +29,19 @@ class PoseGraphic internal constructor(
     private val topLimit: Float
     private val bottomLimit: Float
     private var greenZone: Paint = Paint()
+    private var isInsideGreenZone: Boolean
 
     companion object {
         // Draw point dot's radius.
         private const val DOT_RADIUS = 38.0f
         private const val STROKE_WIDTH = 10.0f
+
     }
 
     init {
         // init color.
-        topLimit = (w / 7).toFloat()
-        bottomLimit = ((w / 7) * 6).toFloat()
+        topLimit = (w / 10).toFloat()
+        bottomLimit = ((w / 10) * 9).toFloat()
         whitePaint = Paint()
         leftPaint = Paint()
         leftPaint.strokeWidth = STROKE_WIDTH
@@ -48,6 +49,7 @@ class PoseGraphic internal constructor(
         rightPaint = Paint()
         rightPaint.strokeWidth = STROKE_WIDTH
         rightPaint.color = Color.YELLOW
+        isInsideGreenZone = false
     }
 
     // Canvas view drawing.
@@ -70,20 +72,16 @@ class PoseGraphic internal constructor(
         // Green zone default color -> Green and alpha 90.
         greenZone.setARGB(90, 0, 255, 0)
 
+        // Green checker
         if (!landmarks.none {
-                it.position.y < topLimit
+                it.position.y - 40 < topLimit || it.position.y + 40 > bottomLimit
             }) {
-            Log.d("HIT", "hit top")
-//            Toast.makeText(context,"hit top",Toast.LENGTH_SHORT).show()
+            isInsideGreenZone = false
             greenZone.setARGB(90, 255, 0, 0)
+        } else {
+            isInsideGreenZone = true
         }
-        if (!landmarks.none {
-                it.position.y > bottomLimit
-            }) {
-            Log.d("HIT", "hit bottom")
-//            Toast.makeText(context,"hit bottom",Toast.LENGTH_SHORT).show()
-            greenZone.setARGB(90, 255, 0, 0)
-        }
+        isInsideGreenZoneCallBack.isInsideGreenZone(isInsideGreenZone)
         drawGreenZone(canvas!!, greenZone)
     }
 
@@ -168,4 +166,8 @@ class PoseGraphic internal constructor(
             paint.setARGB(255, 255 - v, 255 - v, 255)
         }
     }
+}
+
+interface isInsideGreenZoneCallBack {
+    fun isInsideGreenZone(isInside: Boolean)
 }

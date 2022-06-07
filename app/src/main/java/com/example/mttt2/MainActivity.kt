@@ -2,36 +2,43 @@ package com.example.mttt2
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import com.example.mttt2.databinding.ActivityMainBinding
+import com.example.mttt2.usecase.*
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.PoseDetection
 import com.google.mlkit.vision.pose.accurate.AccuratePoseDetectorOptions
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
     lateinit var binding: ActivityMainBinding
     lateinit var cameraSelector: CameraSelector
     lateinit var previewView: PreviewView
+    var imageCaptureUseCase: ImageCapture? = null
     var analysisUseCase: ImageAnalysis? = null
     var previewUseCase: Preview? = null
-    lateinit var graphicOverlay: GraphicOverlay
+    lateinit var ahiImageCapture: AHImageCapture
+    private lateinit var graphicOverlay: GraphicOverlay
     var cameraProvider: ProcessCameraProvider? = null
     lateinit var constraintLayout: ConstraintLayout
     lateinit var viewModel: CameraXViewModel
+    var inGreenZone: Boolean = false
 
     companion object {
         private const val TAG = "PottiTest"
@@ -46,6 +53,28 @@ class MainActivity : AppCompatActivity() {
             )
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.CAMERA), PERMISSION_REQUESTS)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSION_REQUESTS) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "CameraX permission granted", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "CameraX permission NIT granted", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Layout inflate and bind on the MainActivity lifecycle owner.
@@ -58,28 +87,53 @@ class MainActivity : AppCompatActivity() {
         // Get front camera option.
         cameraSelector =
             CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_FRONT).build()
-
-        // Checking runtime permission granted.
-        if (!allRuntimePermissionsGranted()) {
-            getRuntimePermissions()
-        } else {
-            // Start camera progress and bind viewmodel instance.
-            viewModel = ViewModelProvider(
-                this,
-                ViewModelProvider.AndroidViewModelFactory.getInstance(application)
-            )
-                .get(CameraXViewModel::class.java)
-            // Get camera provider by viewmodel observation.
-            viewModel.processCameraProvider.observe(this) {
-                cameraProvider = it
-                bindAllCameraUseCases()
+//         Start camera progress and bind viewmodel instance.
+        viewModel = ViewModelProvider(
+            this,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(application)
+        )
+            .get(CameraXViewModel::class.java)
+        // Get camera provider by viewmodel observation.
+        viewModel.processCameraProvider.observe(this) {
+            cameraProvider = it
+            bindAllCameraUseCases()
+        }
+        lifecycleScope.launch {
+            viewModel.isOnGreensharedFlow.collectLatest {
+                if (it != inGreenZone) {
+                    inGreenZone = it
+                    Log.d(TAG, "onCreate: $inGreenZone")
+                }
             }
         }
+//        binding.captureButton.setOnClickListener {
+//            val file: FileUtils by lazy { FileUtilsImlpl }
+//            file.createDirectoryIfNotExist(this)
+//            ahiImageCapture.takePicture(file.createFile(this))
+//        }
     }
 
     private fun bindAllCameraUseCases() {
         bindPreviewUseCase()
         bindAnalysisUseCase()
+//        bindImageCapture()
+    }
+
+    private fun bindImageCapture() {
+        if (cameraProvider == null) {
+            return
+        }
+        if (imageCaptureUseCase != null) {
+            cameraProvider!!.unbind(imageCaptureUseCase)
+        }
+        ahiImageCapture = AHImageCapture()
+        imageCaptureUseCase = ahiImageCapture.getImageCapture()
+
+        cameraProvider!!.bindToLifecycle(
+            this,
+            cameraSelector,
+            imageCaptureUseCase
+        )
     }
 
     private fun bindPreviewUseCase() {
@@ -93,9 +147,7 @@ class MainActivity : AppCompatActivity() {
             cameraProvider!!.unbind(previewUseCase)
         }
         // Step 3-> overwrite current and create a new instance.
-        previewUseCase = Preview.Builder().build().also {
-            it.setSurfaceProvider(previewView.surfaceProvider)
-        }
+        previewUseCase = PreviewUseCase(previewView).getPreviewUseCase()
         // Step 4-> re-bind previewUseCase to cameraProvider.
         cameraProvider!!.bindToLifecycle(this, cameraSelector, previewUseCase)
     }
@@ -117,9 +169,9 @@ class MainActivity : AppCompatActivity() {
             .build()
         // Step 3-> init poseDetector.
         val poseDetector = PoseDetection.getClient(options)
-        analysisUseCase =
-            ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
+
+
+        analysisUseCase = AnalysisUseCase().getAnalysisUseCase()
         analysisUseCase?.setAnalyzer(
             ContextCompat.getMainExecutor(this)
         ) { imageProxy ->
@@ -138,12 +190,12 @@ class MainActivity : AppCompatActivity() {
                             PoseGraphic(
                                 graphicOverlay,
                                 it,
-                                true,
-                                true,
-                                true,
-                                imageProxy.width,
-                                image.height,
-                                this
+                                visualizeZ = true,
+                                rescaleZForVisualization = true,
+                                w = imageProxy.width,
+                                h = image.height,
+                                context = this,
+                                isInsideGreenZoneCallBack = this
                             )
                         )
                         // Every time when finished callback must need to close imageProxy, to prevent memory leak.
@@ -162,49 +214,9 @@ class MainActivity : AppCompatActivity() {
         cameraProvider!!.bindToLifecycle(this, cameraSelector, analysisUseCase)
     }
 
-    /* Check all the permission are granted. */
-    private fun allRuntimePermissionsGranted(): Boolean {
-        for (permission in REQUIRED_RUNTIME_PERMISSIONS) {
-            permission.let {
-                if (!isPermissionGranted(this, it)) {
-                    return false
-                }
-            }
-        }
-        return true
-    }
-
-    /* Permission request. */
-    private fun getRuntimePermissions() {
-        val permissionsToRequest = ArrayList<String>()
-        for (permission in REQUIRED_RUNTIME_PERMISSIONS) {
-            permission.let {
-                if (!isPermissionGranted(this, it)) {
-                    permissionsToRequest.add(permission)
-                }
-            }
-        }
-
-        if (permissionsToRequest.isNotEmpty()) {
-            ActivityCompat.requestPermissions(
-                this,
-                permissionsToRequest.toTypedArray(),
-                PERMISSION_REQUESTS
-            )
-        }
-    }
-
-    /* Sub-checking program to mapping activity permissions. */
-    private fun isPermissionGranted(context: Context, permission: String): Boolean {
-        if (ContextCompat.checkSelfPermission(
-                context,
-                permission
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            Log.i(TAG, "Permission granted: $permission")
-            return true
-        }
-        Log.i(TAG, "Permission NOT granted: $permission")
-        return false
+    /* Get boolean return check is on the green zone or not */
+    override fun isInsideGreenZone(isInside: Boolean) {
+//        Log.d(TAG, "isInsideGreenZone: $isInside")
+        viewModel.triggerGreenZoneSharedFlow(isInside)
     }
 }

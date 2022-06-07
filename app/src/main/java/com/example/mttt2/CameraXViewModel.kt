@@ -7,15 +7,24 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import java.util.concurrent.ExecutionException
 
 /** View model for interacting with CameraX.  */
-class CameraXViewModel
-/**
- * Create an instance which interacts with the camera service via the given application context.
- */
-    (application: Application) : AndroidViewModel(application) {
+class CameraXViewModel(application: Application) : AndroidViewModel(application) {
+    /**
+     * Create an instance which interacts with the camera service via the given application context.
+     */
     private var cameraProviderLiveData: MutableLiveData<ProcessCameraProvider>? = null
+    private val _isOnGreenZoneFlow = MutableSharedFlow<Boolean>()
+    val isOnGreensharedFlow = _isOnGreenZoneFlow.asSharedFlow()
+
+    fun triggerGreenZoneSharedFlow(isGreenZone: Boolean) = viewModelScope.launch {
+        _isOnGreenZoneFlow.emit(isGreenZone)
+    }
 
     // Handle any errors (including cancellation) here.
     val processCameraProvider: LiveData<ProcessCameraProvider>
