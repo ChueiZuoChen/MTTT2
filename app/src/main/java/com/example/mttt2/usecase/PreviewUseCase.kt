@@ -1,5 +1,7 @@
 package com.example.mttt2.usecase
 
+import android.annotation.SuppressLint
+import android.content.Context
 import android.util.Log
 import android.util.Size
 import android.view.Surface
@@ -7,6 +9,7 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import androidx.camera.core.impl.utils.Exif
 import androidx.camera.view.PreviewView
 import java.io.File
 import java.util.concurrent.Executors
@@ -21,7 +24,6 @@ class PreviewUseCase(previewView: PreviewView) : IPreviewUseCase {
     init {
         previewUseCase = Preview.Builder()
             .setTargetResolution(Size(720, 1280))
-            .setTargetRotation(Surface.ROTATION_90)
             .build()
             .also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
@@ -55,7 +57,7 @@ class AnalysisUseCase : IAnalysisUseCase {
 
 
 interface IImageCapture {
-    fun takePicture(fileName: File)
+    fun takePicture(context: Context, fileName: File)
     fun getImageCapture(): ImageCapture
 }
 
@@ -70,15 +72,23 @@ class AHImageCapture : IImageCapture {
     }
 
 
-    override fun takePicture(fileName: File) {
-        val outputFileOptions = ImageCapture.OutputFileOptions.Builder(fileName).build()
+    override fun takePicture(context: Context, fileName: File) {
+        val outputFileOptions = ImageCapture.OutputFileOptions.Builder(fileName)
+            .build()
         imageCaptureUseCase.takePicture(
             outputFileOptions,
             Executors.newSingleThreadExecutor(),
             object :
                 ImageCapture.OnImageSavedCallback {
+                @SuppressLint("RestrictedApi")
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
                     Log.d(TAG, "onImageSaved: ${outputFileResults.savedUri?.path}")
+                    val inputStream =
+                        context.contentResolver.openInputStream(outputFileResults.savedUri!!)!!
+                    val exif = Exif.createFromInputStream(inputStream)
+                    val rotation = exif.rotation
+                    Log.d(TAG, "onImageSaved: rotation: $rotation")
+
                 }
 
                 override fun onError(exception: ImageCaptureException) {

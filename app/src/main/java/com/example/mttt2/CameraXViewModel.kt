@@ -20,7 +20,7 @@ class CameraXViewModel(application: Application) : AndroidViewModel(application)
      */
     private var cameraProviderLiveData: MutableLiveData<ProcessCameraProvider>? = null
     private val _isOnGreenZoneFlow = MutableSharedFlow<Boolean>()
-    val isOnGreensharedFlow = _isOnGreenZoneFlow.asSharedFlow()
+    val isOnGreenSharedFlow = _isOnGreenZoneFlow.asSharedFlow()
 
     fun triggerGreenZoneSharedFlow(isGreenZone: Boolean) = viewModelScope.launch {
         _isOnGreenZoneFlow.emit(isGreenZone)

@@ -5,6 +5,8 @@
       <map>
         <entry key="../../../../layout/custom_preview.xml" value="0.18375209380234506" />
         <entry key="app/src/main/res/layout/activity_main.xml" value="0.4296165489404642" />
+        <entry key="app/src/main/res/layout/fragment_camera.xml" value="0.5846920289855072" />
+        <entry key="app/src/main/res/layout/navigation_container.xml" value="0.26084762865792127" />
       </map>
     </option>
   </component>

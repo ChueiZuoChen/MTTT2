@@ -22,21 +22,23 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.PoseDetection
 import com.google.mlkit.vision.pose.accurate.AccuratePoseDetectorOptions
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
-    lateinit var binding: ActivityMainBinding
-    lateinit var cameraSelector: CameraSelector
-    lateinit var previewView: PreviewView
-    var imageCaptureUseCase: ImageCapture? = null
-    var analysisUseCase: ImageAnalysis? = null
-    var previewUseCase: Preview? = null
-    lateinit var ahiImageCapture: AHImageCapture
+    private lateinit var binding: ActivityMainBinding
+    private lateinit var cameraSelector: CameraSelector
+    private lateinit var previewView: PreviewView
+    private var imageCaptureUseCase: ImageCapture? = null
+    private var analysisUseCase: ImageAnalysis? = null
+    private var previewUseCase: Preview? = null
+    private lateinit var ahiImageCapture: AHImageCapture
     private lateinit var graphicOverlay: GraphicOverlay
-    var cameraProvider: ProcessCameraProvider? = null
-    lateinit var viewModel: CameraXViewModel
-    var inGreenZone: Boolean = false
+    private var cameraProvider: ProcessCameraProvider? = null
+    private lateinit var viewModel: CameraXViewModel
+    private var inGreenZone: Boolean = false
 
     companion object {
         private const val TAG = "PottiTest"
@@ -72,7 +74,6 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
         setContentView(binding.root)
         graphicOverlay = binding.graphicOverlay
         previewView = binding.previewView
-
         // Get front camera option.
         cameraSelector =
             CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_FRONT).build()
@@ -87,7 +88,7 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
             bindAllCameraUseCases()
         }
         lifecycleScope.launch {
-            viewModel.isOnGreensharedFlow.collectLatest {
+            viewModel.isOnGreenSharedFlow.collectLatest {
                 if (it != inGreenZone) {
                     inGreenZone = it
                     Log.d(TAG, "onCreate: $inGreenZone")
@@ -97,7 +98,12 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
         binding.captureButton.setOnClickListener {
             val file: FileUtils by lazy { FileUtilsImlpl }
             file.createDirectoryIfNotExist(this)
-            ahiImageCapture.takePicture(file.createFile(this))
+            for (i in 1..4) {
+                runBlocking {
+                    delay(250)
+                }
+                ahiImageCapture.takePicture(this, file.createFile(this))
+            }
         }
     }
 
