@@ -1,6 +1,5 @@
 package com.example.mttt2.usecase
 
-import android.content.Context
 import android.util.Log
 import android.util.Size
 import android.view.Surface
@@ -66,13 +65,13 @@ class AHImageCapture : IImageCapture {
     init {
         imageCaptureUseCase = ImageCapture.Builder()
             .setTargetResolution(Size(720, 1280))
-//            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build()
     }
 
 
-    override fun takePicture(file: File) {
-        val outputFileOptions = ImageCapture.OutputFileOptions.Builder(file).build()
+    override fun takePicture(fileName: File) {
+        val outputFileOptions = ImageCapture.OutputFileOptions.Builder(fileName).build()
         imageCaptureUseCase.takePicture(
             outputFileOptions,
             Executors.newSingleThreadExecutor(),

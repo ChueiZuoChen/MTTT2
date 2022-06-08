@@ -13,7 +13,6 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -36,21 +35,12 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
     lateinit var ahiImageCapture: AHImageCapture
     private lateinit var graphicOverlay: GraphicOverlay
     var cameraProvider: ProcessCameraProvider? = null
-    lateinit var constraintLayout: ConstraintLayout
     lateinit var viewModel: CameraXViewModel
     var inGreenZone: Boolean = false
 
     companion object {
         private const val TAG = "PottiTest"
         private const val PERMISSION_REQUESTS = 1
-
-        // Set of required runtime permissions.
-        private val REQUIRED_RUNTIME_PERMISSIONS =
-            arrayOf(
-                Manifest.permission.CAMERA,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            )
     }
 
     override fun onResume() {
@@ -80,7 +70,6 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
         // Layout inflate and bind on the MainActivity lifecycle owner.
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        constraintLayout = binding.constraintLayout
         graphicOverlay = binding.graphicOverlay
         previewView = binding.previewView
 
@@ -91,8 +80,7 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
         viewModel = ViewModelProvider(
             this,
             ViewModelProvider.AndroidViewModelFactory.getInstance(application)
-        )
-            .get(CameraXViewModel::class.java)
+        )[CameraXViewModel::class.java]
         // Get camera provider by viewmodel observation.
         viewModel.processCameraProvider.observe(this) {
             cameraProvider = it
@@ -106,23 +94,22 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
                 }
             }
         }
-//        binding.captureButton.setOnClickListener {
-//            val file: FileUtils by lazy { FileUtilsImlpl }
-//            file.createDirectoryIfNotExist(this)
-//            ahiImageCapture.takePicture(file.createFile(this))
-//        }
+        binding.captureButton.setOnClickListener {
+            val file: FileUtils by lazy { FileUtilsImlpl }
+            file.createDirectoryIfNotExist(this)
+            ahiImageCapture.takePicture(file.createFile(this))
+        }
     }
 
+    @SuppressLint("UnsafeOptInUsageError")
     private fun bindAllCameraUseCases() {
+        cameraProvider!!.unbindAll()
         bindPreviewUseCase()
+        bindImageCapture()
         bindAnalysisUseCase()
-//        bindImageCapture()
     }
 
     private fun bindImageCapture() {
-        if (cameraProvider == null) {
-            return
-        }
         if (imageCaptureUseCase != null) {
             cameraProvider!!.unbind(imageCaptureUseCase)
         }
