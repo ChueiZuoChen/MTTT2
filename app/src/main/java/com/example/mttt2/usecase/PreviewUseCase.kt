@@ -6,8 +6,9 @@ import androidx.camera.core.Preview
 import androidx.camera.view.PreviewView
 
 class PreviewUseCase(val previewView: PreviewView) : ICameraUseCase {
+    private var resolution = Size(720, 1280)
     private var previewUseCase: Preview = Preview.Builder()
-        .setTargetResolution(Size(720, 1280))
+        .setTargetResolution(resolution)
         .setTargetRotation(ROTATION_0)
         .build()
         .also {
@@ -23,11 +24,7 @@ class PreviewUseCase(val previewView: PreviewView) : ICameraUseCase {
     }
 }
 
-
 interface ICameraUseCase {
     fun getUseCaseName(): String
     fun <T> getUseCaseInstance(): T
 }
-
-
-private const val TAG = "PreviewUseCase"
