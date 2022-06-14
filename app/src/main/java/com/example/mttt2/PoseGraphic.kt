@@ -19,7 +19,7 @@ internal class PoseGraphic internal constructor(
     private val w: Int,
     private val h: Int,
     private val context: Context,
-    private val isInsideGreenZoneCallBack: isInsideGreenZoneCallBack
+    private val isInsideGreenZoneCallBack: isInsideGreenZoneCallBack,
 ) : GraphicOverlay.Graphic(overlay) {
     private var zMin = java.lang.Float.MAX_VALUE
     private var zMax = java.lang.Float.MIN_VALUE
@@ -63,10 +63,12 @@ internal class PoseGraphic internal constructor(
         }
         // Draw all the filtered landmark points.
         for (landmark in landmarks) {
-            drawPoint(canvas!!, landmark, whitePaint)
-            if (visualizeZ && rescaleZForVisualization) {
-                zMin = min(zMin, landmark.position3D.z)
-                zMax = max(zMax, landmark.position3D.z)
+            canvas?.let {
+                drawPoint(it, landmark, whitePaint)
+                if (visualizeZ && rescaleZForVisualization) {
+                    zMin = min(zMin, landmark.position3D.z)
+                    zMax = max(zMax, landmark.position3D.z)
+                }
             }
         }
         // Green zone default color -> Green and alpha 90.
@@ -136,7 +138,7 @@ internal class PoseGraphic internal constructor(
     private fun maybeUpdatePaintColor(
         paint: Paint,
         canvas: Canvas,
-        zInImagePixel: Float
+        zInImagePixel: Float,
     ) {
         if (!visualizeZ) {
             return

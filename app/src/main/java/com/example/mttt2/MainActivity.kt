@@ -3,8 +3,11 @@ package com.example.mttt2
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -22,12 +25,13 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.PoseDetection
 import com.google.mlkit.vision.pose.accurate.AccuratePoseDetectorOptions
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import java.io.FileOutputStream
 
-class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
+class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack, TakePictureCallback {
     private lateinit var binding: ActivityMainBinding
     private lateinit var cameraSelector: CameraSelector
     private lateinit var previewView: PreviewView
@@ -98,22 +102,49 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
         binding.captureButton.setOnClickListener {
             val file: FileUtils by lazy { FileUtilsImlpl }
             file.createDirectoryIfNotExist(this)
-            for (i in 1..4) {
-                runBlocking {
+            lifecycleScope.launch(Dispatchers.IO) {
+                for (i in 1..4) {
                     delay(250)
+                    takePicture()
                 }
-                ahiImageCapture.takePicture(this, file.createFile(this))
             }
         }
     }
 
     @SuppressLint("UnsafeOptInUsageError")
     private fun bindAllCameraUseCases() {
-        cameraProvider!!.unbindAll()
         bindPreviewUseCase()
         bindImageCapture()
         bindAnalysisUseCase()
+
+        lifecycleScope.launch {
+            delay(3000)
+            cameraProvider?.let {
+                graphicOverlay.visibility = View.GONE
+            }
+            delay(5000)
+            cameraProvider?.let {
+                graphicOverlay.visibility = View.VISIBLE
+            }
+        }
     }
+
+    private fun bindPreviewUseCase() {
+        // Step 1-> check current cameraProvider got a control from lifecycle.
+        if (cameraProvider == null) {
+            return
+        }
+        // Step 2-> check current cameraProvider has been bind previewUseCase or not.
+        if (previewUseCase != null) {
+            // if(yes) unbind previous previewUseCase.
+            cameraProvider!!.unbind(previewUseCase)
+        }
+        // Step 3-> overwrite current and create a new instance.
+        previewUseCase = PreviewUseCase(previewView).getUseCaseInstance()
+        // Step 4-> re-bind previewUseCase to cameraProvider.
+        cameraProvider!!.bindToLifecycle(this, CameraSelector.DEFAULT_FRONT_CAMERA, previewUseCase)
+    }
+
 
     private fun bindImageCapture() {
         if (imageCaptureUseCase != null) {
@@ -129,21 +160,7 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
         )
     }
 
-    private fun bindPreviewUseCase() {
-        // Step 1-> check current cameraProvider got a control from lifecycle.
-        if (cameraProvider == null) {
-            return
-        }
-        // Step 2-> check current cameraProvider has been bind previewUseCase or not.
-        if (previewUseCase != null) {
-            // if(yes) unbind previous previewUseCase.
-            cameraProvider!!.unbind(previewUseCase)
-        }
-        // Step 3-> overwrite current and create a new instance.
-        previewUseCase = PreviewUseCase(previewView).getPreviewUseCase()
-        // Step 4-> re-bind previewUseCase to cameraProvider.
-        cameraProvider!!.bindToLifecycle(this, cameraSelector, previewUseCase)
-    }
+    lateinit var bmp: BitmapModel
 
     @SuppressLint("UnsafeOptInUsageError")
     private fun bindAnalysisUseCase() {
@@ -163,11 +180,20 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
         // Step 3-> init poseDetector.
         val poseDetector = PoseDetection.getClient(options)
 
-
-        analysisUseCase = AnalysisUseCase().getAnalysisUseCase()
-        analysisUseCase?.setAnalyzer(
+        analysisUseCase = AnalysisUseCase().getUseCaseInstance()
+        analysisUseCase!!.setAnalyzer(
             ContextCompat.getMainExecutor(this)
         ) { imageProxy ->
+            val rotationDegree = imageProxy.imageInfo.rotationDegrees
+            // Yuv to Bit map
+            bmp = BitmapModel(yuvToBitmap(imageProxy.image!!), rotationDegree)
+            if (viewModel.takePicture.value!!) {
+
+                // save image
+                saveImage2(bmp.bitmap, rotationDegree)
+                viewModel.triggerTakePicture(false)
+            }
+
             // Get image from imageProxy stream.
             val image = imageProxy.image
             graphicOverlay.setImageSourceInfo(imageProxy.height, imageProxy.width)
@@ -203,8 +229,21 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
             // This method can be invoked from outside of the UI thread only when this View is attached to a window.
             graphicOverlay.postInvalidate()
         }
-        // Bind to lifecycleOwner.
         cameraProvider!!.bindToLifecycle(this, cameraSelector, analysisUseCase)
+    }
+
+    private fun saveImage2(bmp: Bitmap, rotationDegree: Int) {
+        val matrix = Matrix()
+        matrix.postRotate(rotationDegree.toFloat())
+        matrix.postScale(-1f, 1f, bmp.width / 2f, bmp.height / 2f)
+        val rotationBitmap = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, matrix, true)
+        try {
+            val out = FileOutputStream(FileUtilsImlpl.createFile(this))
+            rotationBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            rotationBitmap.recycle()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     /* Get boolean return check is on the green zone or not */
@@ -212,4 +251,18 @@ class MainActivity : AppCompatActivity(), isInsideGreenZoneCallBack {
 //        Log.d(TAG, "isInsideGreenZone: $isInside")
         viewModel.triggerGreenZoneSharedFlow(isInside)
     }
+
+    override fun takePicture() {
+        saveImage2(bmp.bitmap, bmp.rotationDegree)
+    }
 }
+
+// pass value callback
+interface TakePictureCallback {
+    fun takePicture()
+}
+
+data class BitmapModel(
+    val bitmap: Bitmap,
+    val rotationDegree: Int,
+)

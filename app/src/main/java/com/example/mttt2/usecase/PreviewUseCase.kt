@@ -4,103 +4,47 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import android.util.Size
-import android.view.Surface
+import android.view.Surface.ROTATION_0
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
-import androidx.camera.core.impl.utils.Exif
 import androidx.camera.view.PreviewView
 import java.io.File
 import java.util.concurrent.Executors
 
-interface IPreviewUseCase {
-    fun getPreviewUseCase(): Preview
-}
-
-class PreviewUseCase(previewView: PreviewView) : IPreviewUseCase {
+class PreviewUseCase(val previewView: PreviewView) : ICameraUseCase {
     private var previewUseCase: Preview
 
     init {
         previewUseCase = Preview.Builder()
             .setTargetResolution(Size(720, 1280))
+            .setTargetRotation(ROTATION_0)
             .build()
             .also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
     }
 
-    override fun getPreviewUseCase(): Preview {
-        return previewUseCase
+    override fun getUseCaseName(): String {
+        return "PerviewUseCase"
+    }
+
+    override fun <T> getUseCaseInstance(): T {
+        return previewUseCase as T
     }
 }
 
 
-interface IAnalysisUseCase {
-    fun getAnalysisUseCase(): ImageAnalysis
-}
 
-class AnalysisUseCase : IAnalysisUseCase {
-    private var analysisUseCase: ImageAnalysis
-
-    init {
-        analysisUseCase = ImageAnalysis.Builder()
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .setTargetResolution(Size(720, 1280))
-            .build()
-    }
-
-    override fun getAnalysisUseCase(): ImageAnalysis {
-        return analysisUseCase
-    }
+interface ICameraUseCase {
+    fun getUseCaseName(): String
+    fun <T> getUseCaseInstance(): T
 }
 
 
-interface IImageCapture {
-    fun takePicture(context: Context, fileName: File)
-    fun getImageCapture(): ImageCapture
-}
-
-class AHImageCapture : IImageCapture {
-    private var imageCaptureUseCase: ImageCapture
-
-    init {
-        imageCaptureUseCase = ImageCapture.Builder()
-            .setTargetResolution(Size(720, 1280))
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-            .build()
-    }
 
 
-    override fun takePicture(context: Context, fileName: File) {
-        val outputFileOptions = ImageCapture.OutputFileOptions.Builder(fileName)
-            .build()
-        imageCaptureUseCase.takePicture(
-            outputFileOptions,
-            Executors.newSingleThreadExecutor(),
-            object :
-                ImageCapture.OnImageSavedCallback {
-                @SuppressLint("RestrictedApi")
-                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                    Log.d(TAG, "onImageSaved: ${outputFileResults.savedUri?.path}")
-                    val inputStream =
-                        context.contentResolver.openInputStream(outputFileResults.savedUri!!)!!
-                    val exif = Exif.createFromInputStream(inputStream)
-                    val rotation = exif.rotation
-                    Log.d(TAG, "onImageSaved: rotation: $rotation")
 
-                }
-
-                override fun onError(exception: ImageCaptureException) {
-                    Log.d(TAG, "onError: ${exception.message}")
-                }
-            }
-        )
-    }
-
-    override fun getImageCapture(): ImageCapture {
-        return imageCaptureUseCase
-    }
-}
 
 private const val TAG = "PreviewUseCase"

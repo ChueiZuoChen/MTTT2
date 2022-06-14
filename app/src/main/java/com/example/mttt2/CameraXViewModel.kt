@@ -52,4 +52,12 @@ class CameraXViewModel(application: Application) : AndroidViewModel(application)
     companion object {
         private const val TAG = "CameraXViewModel"
     }
+
+    private val _takePicture = MutableLiveData(false)
+    val takePicture: LiveData<Boolean>
+        get() = _takePicture
+
+    fun triggerTakePicture(isTrigger: Boolean) {
+        _takePicture.value = isTrigger
+    }
 }
