@@ -7,7 +7,7 @@ import android.util.AttributeSet
 import android.view.View
 import com.google.common.base.Preconditions
 
-internal class GraphicOverlay(context: Context, attrs: AttributeSet?) : View(context, attrs) {
+class GraphicOverlay(context: Context, attrs: AttributeSet?) : View(context, attrs) {
     private val lock = Any()
     private val graphics: MutableList<Graphic> = mutableListOf()
     private val transformationMatrix = Matrix()

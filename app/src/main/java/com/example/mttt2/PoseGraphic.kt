@@ -19,7 +19,7 @@ internal class PoseGraphic internal constructor(
     private val w: Int,
     private val h: Int,
     private val context: Context,
-    private val isInsideGreenZoneCallBack: isInsideGreenZoneCallBack,
+    private val isInsideGreenZoneCallBack: IsInsideGreenZoneCallBack,
 ) : GraphicOverlay.Graphic(overlay) {
     private var zMin = java.lang.Float.MAX_VALUE
     private var zMax = java.lang.Float.MIN_VALUE
@@ -170,6 +170,6 @@ internal class PoseGraphic internal constructor(
     }
 }
 
-interface isInsideGreenZoneCallBack {
+interface IsInsideGreenZoneCallBack {
     fun isInsideGreenZone(isInside: Boolean)
 }
