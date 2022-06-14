@@ -34,7 +34,7 @@ class AnalysisUseCase : ICameraUseCase {
 
 }
 
-open class CameraAnalyzer(
+class CameraAnalyzer(
     private val graphicOverlay: GraphicOverlay,
     private val poseDetector: PoseDetector,
     private val context: Context,
@@ -57,14 +57,14 @@ open class CameraAnalyzer(
                         graphicOverlay.clear()
                         graphicOverlay.add(
                             PoseGraphic(
-                                graphicOverlay,
-                                pose,
-                                true,
-                                true,
-                                imageProxy.width,
-                                imageProxy.height,
-                                context,
-                                isInsideGreenZoneCallBack
+                                overlay = graphicOverlay,
+                                pose = pose,
+                                visualizeZ = true,
+                                rescaleZForVisualization = true,
+                                w = imageProxy.width,
+                                h = imageProxy.height,
+                                context = context,
+                                isInsideGreenZoneCallBack = isInsideGreenZoneCallBack
                             )
                         )
                         imageProxy.close()
@@ -77,15 +77,16 @@ open class CameraAnalyzer(
         }
     }
 
-    fun saveImage() {
+    fun captureNextPicture() {
         val matrix = Matrix()
+        val (bitmap,rotationDegree)= bmpData
         matrix.postRotate(rotationDegree.toFloat())
-        matrix.postScale(-1f, 1f, bmpData.bitmap.width / 2f, bmpData.bitmap.height / 2f)
-        val rotationBitmap = Bitmap.createBitmap(bmpData.bitmap,
+        matrix.postScale(-1f, 1f, bitmap.width / 2f, bitmap.height / 2f)
+        val rotationBitmap = Bitmap.createBitmap(bitmap,
             0,
             0,
-            bmpData.bitmap.width,
-            bmpData.bitmap.height,
+            bitmap.width,
+            bitmap.height,
             matrix,
             true)
         try {

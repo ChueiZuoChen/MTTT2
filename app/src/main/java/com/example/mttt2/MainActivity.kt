@@ -11,7 +11,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -97,7 +96,7 @@ class MainActivity : AppCompatActivity(), IsInsideGreenZoneCallBack {
             lifecycleScope.launch(Dispatchers.IO) {
                 for (i in 1..4) {
                     delay(250)
-                    cameraAnalyzer.saveImage()
+                    cameraAnalyzer.captureNextPicture()
                 }
             }
         }
