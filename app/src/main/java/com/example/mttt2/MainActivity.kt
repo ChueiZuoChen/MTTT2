@@ -1,12 +1,9 @@
 package com.example.mttt2
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Bundle
-import android.util.Log
-import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -14,7 +11,6 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.example.mttt2.databinding.ActivityMainBinding
@@ -26,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity(), IsInsideGreenZoneCallBack {
     private lateinit var binding: ActivityMainBinding
@@ -39,8 +36,67 @@ class MainActivity : AppCompatActivity(), IsInsideGreenZoneCallBack {
     private lateinit var viewModel: CameraXViewModel
     private var inGreenZone: Boolean = false
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        graphicOverlay = binding.graphicOverlay
+        previewView = binding.previewView
+        cameraSelector = CameraSelector.Builder()
+            .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
+            .build()
+        viewModel = ViewModelProvider(
+            this,
+            ViewModelProvider.AndroidViewModelFactory.getInstance(application))[CameraXViewModel::class.java]
+        previewUseCase = PreviewUseCase(previewView).getUseCaseInstance()
+        analysisUseCase = AnalysisUseCase().getUseCaseInstance()
+        val options = PoseDetectorOptions.Builder()
+            .setDetectorMode(AccuratePoseDetectorOptions.STREAM_MODE)
+            .build()
+        val poseDetector = PoseDetection.getClient(options)
+        cameraAnalyzer = CameraAnalyzer.Builder()
+            .setContext(this)
+            .setGraphicOverlay(graphicOverlay)
+            .setPoseDetector(poseDetector)
+            .setGreenZoneCallBackListener(this)
+            .build()
+        analysisUseCase!!.setAnalyzer(Executors.newSingleThreadExecutor(), cameraAnalyzer)
+        viewModel.processCameraProvider.observe(this) {
+            cameraProvider = it
+            BodyScanCamera.Builder()
+                .setCameraSelector(cameraSelector)
+                .setLifecycleOwner(this)
+                .setGraphicOverlay(graphicOverlay)
+                .setPreview(previewUseCase!!)
+                .setAnalysisUseCase(analysisUseCase!!)
+                .setCameraProvider(it)
+                .build()
+                .bindAllCameraUseCases()
+        }
+        lifecycleScope.launch {
+            viewModel.isOnGreenSharedFlow.collectLatest {
+                if (it != inGreenZone) {
+                    inGreenZone = it
+                }
+            }
+        }
+        binding.captureButton.setOnClickListener {
+            val file: FileUtils by lazy { FileUtilsImlpl }
+            file.createDirectoryIfNotExist(this)
+            lifecycleScope.launch(Dispatchers.IO) {
+                for (i in 1..4) {
+                    delay(250)
+                    cameraAnalyzer.captureNextPicture()
+                }
+            }
+        }
+    }
+
+    override fun isInsideGreenZone(isInside: Boolean) {
+        viewModel.triggerGreenZoneSharedFlow(isInside)
+    }
+
     companion object {
-        private const val TAG = "PottiTest"
         private const val PERMISSION_REQUESTS = 1
     }
 
@@ -64,96 +120,6 @@ class MainActivity : AppCompatActivity(), IsInsideGreenZoneCallBack {
                 Toast.makeText(this, "CameraX permission NIT granted", Toast.LENGTH_SHORT).show()
             }
         }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        graphicOverlay = binding.graphicOverlay
-        previewView = binding.previewView
-        cameraSelector =
-            CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_FRONT).build()
-        viewModel = ViewModelProvider(
-            this,
-            ViewModelProvider.AndroidViewModelFactory.getInstance(application)
-        )[CameraXViewModel::class.java]
-        viewModel.processCameraProvider.observe(this) {
-            cameraProvider = it
-            bindAllCameraUseCases()
-        }
-        lifecycleScope.launch {
-            viewModel.isOnGreenSharedFlow.collectLatest {
-                if (it != inGreenZone) {
-                    inGreenZone = it
-                    Log.d(TAG, "onCreate: $inGreenZone")
-                }
-            }
-        }
-        binding.captureButton.setOnClickListener {
-            val file: FileUtils by lazy { FileUtilsImlpl }
-            file.createDirectoryIfNotExist(this)
-            lifecycleScope.launch(Dispatchers.IO) {
-                for (i in 1..4) {
-                    delay(250)
-                    cameraAnalyzer.captureNextPicture()
-                }
-            }
-        }
-    }
-
-    @SuppressLint("UnsafeOptInUsageError")
-    private fun bindAllCameraUseCases() {
-        bindPreviewUseCase()
-        bindAnalysisUseCase()
-        lifecycleScope.launch {
-            delay(3000)
-            cameraProvider?.let {
-                graphicOverlay.visibility = View.GONE
-            }
-            delay(5000)
-            cameraProvider?.let {
-                graphicOverlay.visibility = View.VISIBLE
-            }
-        }
-    }
-
-    private fun bindPreviewUseCase() {
-        if (cameraProvider == null) {
-            return
-        }
-        if (previewUseCase != null) {
-            cameraProvider!!.unbind(previewUseCase)
-        }
-        previewUseCase = PreviewUseCase(previewView).getUseCaseInstance()
-        cameraProvider!!.bindToLifecycle(this, CameraSelector.DEFAULT_FRONT_CAMERA, previewUseCase)
-    }
-
-    @SuppressLint("UnsafeOptInUsageError")
-    private fun bindAnalysisUseCase() {
-        if (cameraProvider == null) {
-            return
-        }
-        if (analysisUseCase != null) {
-            cameraProvider!!.unbind(analysisUseCase)
-        }
-        val options = PoseDetectorOptions.Builder()
-            .setDetectorMode(AccuratePoseDetectorOptions.STREAM_MODE)
-            .build()
-        val poseDetector = PoseDetection.getClient(options)
-        cameraAnalyzer = CameraAnalyzer(
-            graphicOverlay,
-            poseDetector,
-            this,
-            this,
-        )
-        analysisUseCase = AnalysisUseCase().getUseCaseInstance()
-        analysisUseCase?.setAnalyzer(ContextCompat.getMainExecutor(this), cameraAnalyzer)
-        cameraProvider!!.bindToLifecycle(this, cameraSelector, analysisUseCase)
-    }
-
-    override fun isInsideGreenZone(isInside: Boolean) {
-        viewModel.triggerGreenZoneSharedFlow(isInside)
     }
 }
 
